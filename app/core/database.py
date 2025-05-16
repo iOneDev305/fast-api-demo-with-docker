@@ -5,21 +5,22 @@ from typing import Generator
 import os
 from dotenv import load_dotenv
 
+# Load environment variables from .env file
 load_dotenv()
 
-# Use the correct environment variable
+# Get DATABASE_URL or use default
 DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root:password@db:3306/fastapi_demo_db")
 
 # Create SQLAlchemy engine
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
-# Create session
+# Create a configured "Session" class
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-# Base class for models
+# Base class for all models
 Base = declarative_base()
 
-# Dependency to get DB session
+# Dependency for FastAPI routes
 def get_db() -> Generator:
     db = SessionLocal()
     try:
