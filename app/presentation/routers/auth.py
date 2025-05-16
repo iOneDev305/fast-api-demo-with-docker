@@ -1,5 +1,5 @@
 from datetime import timedelta, datetime
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Form
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.security import (
@@ -14,23 +14,28 @@ from app.infrastructure.database import get_db
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 @router.post("/register", response_model=UserResponse)
-def register(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.email == user.email).first()
+def register(
+    email: str = Form(...),
+    password: str = Form(..., min_length=8),
+    role: str = Form("user"),
+    db: Session = Depends(get_db)
+):
+    db_user = db.query(User).filter(User.email == email).first()
     if db_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
     
-    new_user = User(email=user.email, role=user.role)
-    new_user.set_password(user.password)
+    new_user = User(email=email, role=role)
+    new_user.set_password(password)
     
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     return new_user
 
-@router.post("/token", response_model=Token)
+@router.post("/login", response_model=Token)
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
@@ -54,6 +59,48 @@ def login(
     
     return {"access_token": access_token, "token_type": "bearer"}
 
-@router.get("/me", response_model=UserResponse)
-def read_users_me(current_user: User = Depends(get_current_user)):
-    return current_user 
+@router.get("/profile", response_model=UserResponse)
+def get_profile(current_user: User = Depends(get_current_user)):
+    return current_user
+
+@router.put("/profile", response_model=UserResponse)
+def update_profile(
+    current_user: User = Depends(get_current_user),
+    email: str = Form(None),
+    password: str = Form(None, min_length=8),
+    role: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    # Check if email is being changed and if it's already taken
+    if email and email != current_user.email:
+        existing_user = db.query(User).filter(User.email == email).first()
+        if existing_user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+        current_user.email = email
+
+    # Update password if provided
+    if password:
+        current_user.set_password(password)
+
+    # Update role if provided
+    if role:
+        current_user.role = role
+
+    # Update the updated_at timestamp
+    current_user.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+@router.delete("/profile", status_code=status.HTTP_204_NO_CONTENT)
+def delete_profile(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    db.delete(current_user)
+    db.commit()
+    return None 
