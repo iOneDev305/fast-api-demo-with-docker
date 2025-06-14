@@ -10,6 +10,7 @@ from app.core.security import (
 from app.domain.schemas import UserCreate, UserResponse, Token
 from app.domain.user import User
 from app.infrastructure.database import get_db
+from app.core.security import verify_password 
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -41,19 +42,19 @@ def login(
     db: Session = Depends(get_db)
 ):
     user = db.query(User).filter(User.email == form_data.username).first()
-    if not user or not user.verify_password(form_data.password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+
+if not user or not verify_password(form_data.password, user.hashed_password):
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Incorrect email or password",
+    )
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.email}, expires_delta=access_token_expires
     )
     
-    # Update last login time
+    # Optional: update last login
     user.last_login_at = datetime.utcnow()
     db.commit()
     

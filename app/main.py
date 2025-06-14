@@ -15,7 +15,7 @@ app = FastAPI(
 )
 
 # Add API Key middleware
-app.add_middleware(APIKeyMiddleware)
+# app.add_middleware(APIKeyMiddleware)
 
 # Configure CORS
 app.add_middleware(
@@ -27,7 +27,7 @@ app.add_middleware(
 )
 
 # Include routers with /api prefix
-app.include_router(auth.router, prefix="/api")
+app.include_router(auth.router, prefix="/api") 
 
 @app.get("/")
 def read_root():
